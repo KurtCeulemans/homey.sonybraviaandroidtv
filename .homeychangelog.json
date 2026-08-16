@@ -122,5 +122,10 @@
   "2.2.3": {
     "en": "Pair adaptation for new TVs.",
     "de": "Pairing-Anpassungen für neue TVs."
+  },
+  "3.0.0": {
+    "en": "Breaking: manual IP pairing only (SSDP discovery removed). Existing TVs must be removed and added again. Unicast HTTP/HTTPS and unicast Wake-on-LAN. Retry for temporary 404/503 during TV startup. Cross-VLAN support via stored IP.",
+    "de": "Breaking: Nur noch manuelle IP-Kopplung (SSDP-Suche entfernt). Vorhandene TVs müssen entfernt und neu hinzugefügt werden. Unicast HTTP/HTTPS und Unicast Wake-on-LAN. Wiederholung bei temporären 404/503 beim Start. Cross-VLAN über gespeicherte IP.",
+    "nl": "Breaking: alleen nog handmatige IP-pairing (SSDP-discovery verwijderd). Bestaande TV's moeten verwijderd en opnieuw toegevoegd worden. Unicast HTTP/HTTPS en unicast Wake-on-LAN. Retry bij tijdelijke 404/503 tijdens opstarten. Cross-VLAN via opgeslagen IP."
   }
 }

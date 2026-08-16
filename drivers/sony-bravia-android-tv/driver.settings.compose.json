@@ -15,7 +15,12 @@
             "de": "IP-Adresse",
             "nl": "IP adres"
           },
-          "value": "0.0.0.0"
+          "value": "0.0.0.0",
+          "hint": {
+            "en": "Current TV IP address. You can change this later without pairing again. The app talks only to this address; there is no automatic discovery.",
+            "de": "Aktuelle TV-IP-Adresse. Kann später ohne erneutes Pairing geändert werden. Die App verwendet nur diese Adresse; es gibt keine automatische Suche.",
+            "nl": "Huidig TV-IP-adres. U kunt dit later wijzigen zonder opnieuw te pairen. De app gebruikt alleen dit adres; er is geen automatische discovery."
+          }
         },
         {
           "id": "https",
@@ -120,7 +125,12 @@
             "de": "MAC-Adresse",
             "nl": "MAC adres"
           },
-          "value": "00:00:00:00:00:00"
+          "value": "00:00:00:00:00:00",
+          "hint": {
+            "en": "Used only for Wake-on-LAN (unicast to the TV IP). Not used as the network address.",
+            "de": "Wird nur für Wake-on-LAN verwendet (Unicast an die TV-IP). Nicht als Netzwerkadresse verwendet.",
+            "nl": "Alleen gebruikt voor Wake-on-LAN (unicast naar het TV-IP). Niet gebruikt als netwerkadres."
+          }
         }
       ]
     }

@@ -1,61 +1,41 @@
 {
   "errors": {
-    "authentication": "Authenticatie mislukt, controleer pre-shared key instelligen.",
+    "authentication": "Authenticatie mislukt. Controleer de pre-shared key op de TV.",
     "unkown": "Onbekede fout, controleer televisie instellingen.",
     "connection": "Er kon geen verbinding worden gemaakt.",
-    "preshared_key": "Pre-shared key is incorrect, controleer televisie instellingen.",
-    "previous_view": "De vorige view kon niet worden geladen."
-  },
-  "not_found": {
-    "title": "Geen Sony BRAVIA Android TV's gevonden",
-    "intro": "<i>Er zijn geen Sony BRAVIA Android TV's gevonden. Controleer of de televisie <b>Aan staat</b> en probeer het nog eens. Je kunt er ook voor kiezen om de televisie handmatig toe te voegen, alleen aangeraden voor ervaren gebruikers.</i>",
-    "buttons": {
-      "manual_input": "Handmatig invoeren",
-      "instructions": "Bekijk instructies",
-      "scan": "Zoeklogboek"
-    }
-  },
-  "scan_log": {
-    "title": "Apparaat gevonden."
+    "preshared_key": "Pre-shared key ontbreekt of is ongeldig. Controleer de televisie-instellingen.",
+    "previous_view": "De vorige view kon niet worden geladen.",
+    "invalid_ip": "Ongeldig IP-adres of hostnaam.",
+    "timeout": "Timeout: de TV reageerde niet op tijd.",
+    "unreachable": "TV is niet bereikbaar. Controleer het IP-adres, de HTTPS-instelling en of de TV op het netwerk staat.",
+    "api": "Sony API-fout."
   },
   "already_added": {
     "title": "Het geselecteerde apparaat is al toegevoegd."
   },
   "manual_input": {
-    "title": "Handmatig Sony BRAVIA Android TV toevoegen",
-    "intro": "<i>Het handmatig toevoegen van de televisie is alleen bedoeld voor ervaren gebruiken. Voor een makkelijke installatie ervaring kun je beter de autmatische modus gebruiken.</i>",
+    "title": "Sony BRAVIA Android TV toevoegen",
+    "intro": "<i>Voer het IP-adres en de pre-shared key van de TV in. De app communiceert alleen met dit adres via HTTP/HTTPS. Er is geen automatische netwerkdiscovery, dus dit werkt ook over VLAN's wanneer routing is toegestaan.</i>",
     "inputs": {
-      "name": {
-        "label": "Naam (optioneel):",
-        "placeholder": "Naam"
-      },
       "ip_address": {
         "label": "IP-adres:",
-        "placeholder": "IP-adres"
+        "placeholder": "192.168.40.21"
       },
-      "mac_address": {
-        "label": "MAC-adres (optioneel):",
-        "placeholder": "MAC-adres"
-      }
-    },
-    "buttons": {
-      "next": "Volgende"
-    }
-  },
-  "preshared_key": {
-    "titles": {
-      "with_device": "PSK instellen voor __device__",
-      "no_device": "PSK instellen"
-    },
-    "intro": "<i>De pre-shared key wordt gebruikt om met de Sony BRAVIA Android TV te autoriseren over het lokale netwerk. Deze moet worden ingesteld alvorens je verder kan met de installatie van jouw televisie. Als je hierbij hulp nodig hebt kun je op de <b>Bekijk instructies</b> knop, hieronder, drukken.</i>",
-    "inputs": {
       "preshared_key": {
         "label": "Pre-shared key:",
         "placeholder": "Pre-shared key"
+      },
+      "https": {
+        "label": "Gebruik HTTPS"
+      },
+      "mac_address": {
+        "label": "MAC-adres (optioneel):",
+        "placeholder": "AA:BB:CC:DD:EE:FF",
+        "hint": "Wordt indien mogelijk automatisch van de TV gelezen. Alleen gebruikt voor Wake-on-LAN."
       }
     },
     "buttons": {
-      "done": "Klaar",
+      "next": "TV toevoegen",
       "instructions": "Bekijk instructies"
     }
   },
@@ -64,12 +44,12 @@
       "header": "Installeer jouw Sony BRAVIA Android TV",
       "page": "Installeren is heel gemakkelijk"
     },
-    "intro": "<i>Volg de instructies in de video hieronder. In het kort activeren we 'Starten op afstand' op jouw Sony BRAVIA Android TV, en stellen we de autorisatie in door middel van een pre-shared key.</i>",
+    "intro": "<i>Volg de instructies in de video. Zet Starten op afstand aan zodat Homey de TV over het netwerk kan inschakelen, en stel authenticatie in via een pre-shared key.</i>",
     "video_caption": "Druk op de video om te openen in YouTube",
     "step_by_step": {
       "intro": "Alle instellingen die aangepast moeten worden, bevinden zich onder de <b>Netwerk</b> instellingen van de TV. Vanuit deze netwerk instellingen passen we het volgende aan:",
       "steps": "<li>Starten op afstand: <b>Aan</b></li><li>Thuis netwerk instellingen<ul><li>Authenticatie: <b>Normaal en Pre-shared Key</b></li><li>Pre-shared Key: <b>Willekeurig, onthoud de invoer</b></li></ul></li>",
-      "outro": "Hierna ben je klaar om verder te gaan met het instelleren van jouw Sony BRAVIA Android TV. Je wordt later om jouw ingestelde pre-shared key gevraagd."
+      "outro": "Voer daarna in Homey het IP-adres van de TV en dezelfde pre-shared key in. Bestaande devices uit app-versie 2.x moeten eenmalig verwijderd en opnieuw toegevoegd worden."
     },
     "buttons": {
       "continue": "Doorgaan"

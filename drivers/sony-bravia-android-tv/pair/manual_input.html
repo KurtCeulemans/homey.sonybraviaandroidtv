@@ -4,15 +4,6 @@
     <p data-i18n="manual_input.intro"></p>
   </div>
   <form class="hy-tmpl-manual-input-form">
-
-    <!-- <div class="hy-tmpl-manual-input-row">
-      <label class="hy-label" for="name" data-i18n="manual_input.inputs.name.label"></label>
-    </div>
-    <div class="hy-tmpl-manual-input-row">
-      <input class="hy-input-text" type="text" id="name" name="name"
-        data-i18n="[placeholder]manual_input.inputs.name.placeholder" />
-    </div> -->
-
     <div class="hy-tmpl-manual-input-row">
       <label class="homey-form-label" for="ip_address" data-i18n="manual_input.inputs.ip_address.label"></label>
     </div>
@@ -21,17 +12,40 @@
         data-i18n="[placeholder]manual_input.inputs.ip_address.placeholder" required />
     </div>
 
-    <!-- <div class="hy-tmpl-manual-input-row">
-      <label class="hy-label" for="mac_address" data-i18n="manual_input.inputs.mac_address.label"></label>
+    <div class="hy-tmpl-manual-input-row">
+      <label class="homey-form-label" for="preshared_key" data-i18n="manual_input.inputs.preshared_key.label"></label>
     </div>
     <div class="hy-tmpl-manual-input-row">
-      <input class="hy-input-text" type="text" id="mac_address" name="macAddress"
-        data-i18n="[placeholder]manual_input.inputs.mac_address.placeholder" />
-    </div> -->
+      <input class="homey-form-input" type="password" id="preshared_key" name="psk"
+        data-i18n="[placeholder]manual_input.inputs.preshared_key.placeholder" required />
+    </div>
 
-    <div class="hy-tmpl-preshared-key-row">
+    <div class="hy-tmpl-manual-input-row hy-tmpl-manual-input-checkbox">
+      <label class="homey-form-checkbox">
+        <input class="homey-form-checkbox-input" type="checkbox" id="https" name="https" />
+        <span class="homey-form-checkbox-checkmark"></span>
+        <span class="homey-form-checkbox-text" data-i18n="manual_input.inputs.https.label"></span>
+      </label>
+    </div>
+
+    <div class="hy-tmpl-manual-input-row">
+      <label class="homey-form-label" for="mac_address" data-i18n="manual_input.inputs.mac_address.label"></label>
+    </div>
+    <div class="hy-tmpl-manual-input-row">
+      <input class="homey-form-input" type="text" id="mac_address" name="macAddress"
+        data-i18n="[placeholder]manual_input.inputs.mac_address.placeholder" />
+    </div>
+    <div class="hy-tmpl-manual-input-row">
+      <p class="hy-tmpl-manual-input-hint" data-i18n="manual_input.inputs.mac_address.hint"></p>
+    </div>
+
+    <div class="homey-form-group">
       <button class="homey-button-primary-full" type="submit"
         data-i18n="manual_input.buttons.next"></button>
+      <br>
+      <button class="homey-button-secondary-shadow-full" type="button"
+        onclick="sonyBraviaAndroidTvManualInput.onClickInstructions()"
+        data-i18n="manual_input.buttons.instructions"></button>
     </div>
   </form>
 </main>
@@ -42,30 +56,45 @@
       Homey.setTitle(Homey.__('manual_input.title'));
 
       const form = document.querySelector('form');
-      form.addEventListener('submit', e => this.onSubmit(e, this.device));
+      form.addEventListener('submit', e => this.onSubmit(e));
     }
 
-    onSubmit(e, device) {
+    onClickInstructions() {
+      Homey.setViewStoreValue('instructions', 'previous_view', 'manual_input', () => {
+        Homey.showView('instructions');
+      });
+    }
+
+    onSubmit(e) {
       e.preventDefault();
 
       const formData = new FormData(e.target);
       const data = {
-        // name: formData.get('name'),
-        ipAddress: formData.get('ipAddress')
-        // macAddress: formData.get('macAddress')
-      }
+        ipAddress: formData.get('ipAddress'),
+        psk: formData.get('psk'),
+        https: formData.get('https') === 'on',
+        macAddress: formData.get('macAddress')
+      };
 
       Homey.showLoadingOverlay();
-      Homey.emit('manual_input', data, (err, device) => {
+      Homey.emit('pair_device', data, async (err, device) => {
         if (err) {
           Homey.hideLoadingOverlay();
-          // return Homey.alert(Homey.__('errors.connection'));
           return Homey.alert(err.message);
         }
+        if (device === undefined) {
+          Homey.hideLoadingOverlay();
+          return;
+        }
 
-        Homey.setViewStoreValue('add_devices', 'devices', [device], (err, device) => {
-          Homey.showView('preshared_key');
-        });
+        try {
+          await Homey.createDevice(device);
+          Homey.hideLoadingOverlay();
+          Homey.done();
+        } catch (createErr) {
+          Homey.hideLoadingOverlay();
+          return Homey.alert(createErr.message);
+        }
       });
     }
   }
@@ -74,7 +103,6 @@
 </script>
 
 <style>
-  /* Workaround for views without buttons */
   #hy-views>.hy-view {
     overflow: initial !important;
   }
@@ -91,7 +119,7 @@
     position: relative;
     width: 25vw;
     height: 25vw;
-    margin: 20vw auto;
+    margin: 8vw auto;
     background-image: url('assets/images/manual-icon.svg');
     background-position: center center;
     background-repeat: no-repeat;
@@ -107,4 +135,13 @@
     margin-bottom: 1em;
   }
 
+  .hy-tmpl-manual-input-hint {
+    font-size: 12px;
+    opacity: 0.8;
+    margin: 0;
+  }
+
+  .hy-tmpl-manual-input-checkbox {
+    margin-bottom: 1.5em;
+  }
 </style>

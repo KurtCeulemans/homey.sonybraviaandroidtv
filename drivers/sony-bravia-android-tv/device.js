@@ -2,70 +2,75 @@ const Homey = require('homey');
 const SonyBraviaAndroidTvCommunicator = require('../../lib/sony-bravia-android-tv-communicator');
 const SonyBraviaCapabilities = require('../../lib/capabilities');
 
+function sortByName(list) {
+  return list.sort((a, b) => {
+    const left = (a.name || '').toString();
+    const right = (b.name || '').toString();
+    if (left < right) {
+      return -1;
+    }
+    if (left > right) {
+      return 1;
+    }
+    return 0;
+  });
+}
+
 class SonyBraviaAndroidTvDevice extends Homey.Device {
+
   async onInit() {
+    this._pollInFlight = false;
+    this._commandInFlight = 0;
     await this._checkCapabilities();
     this.data = this._generateDeviceObject();
 
-    this.log(`${this.data.name} initialized.`);
+    this.log(`${this.getName()} initialized.`);
 
     this._setCapabilityListeners();
     this._setFlowTrigger();
     this._checkDeviceInterval();
   }
 
-  async _checkCapabilities(){
-    if (!this.hasCapability("volume_set")){
-      await this.addCapability("volume_set");
+  async _checkCapabilities() {
+    if (!this.hasCapability('volume_set')) {
+      await this.addCapability('volume_set');
     }
-    if (!this.hasCapability("input")){
-      await this.addCapability("input");
+    if (!this.hasCapability('input')) {
+      await this.addCapability('input');
     }
-    if (!this.hasCapability("playing_content")){
-      await this.addCapability("playing_content");
+    if (!this.hasCapability('playing_content')) {
+      await this.addCapability('playing_content');
     }
-    if (!this.hasCapability("audio_output")){
-      await this.addCapability("audio_output");
+    if (!this.hasCapability('audio_output')) {
+      await this.addCapability('audio_output');
     }
-    if (!this.hasCapability("screen_off")){
-      await this.addCapability("screen_off");
+    if (!this.hasCapability('screen_off')) {
+      await this.addCapability('screen_off');
     }
   }
 
-  onUninit(){
+  onUninit() {
     this._clearIntervals();
-
-    this.data = this._generateDeviceObject();
-    this.log(`${this.this.getName()} unInit().`);
+    this.log(`${this.getName()} unInit().`);
   }
 
   onDeleted() {
     this._clearIntervals();
-
-    this.data = this._generateDeviceObject();
-    this.log(`${this.this.getName()} deleting.`);
+    this.log(`${this.getName()} deleting.`);
   }
 
-    /**
-   * onSettings is called when the user updates the device's settings.
-   * @param {object} event the onSettings event data
-   * @param {object} event.oldSettings The old settings object
-   * @param {object} event.newSettings The new settings object
-   * @param {string[]} event.changedKeys An array of keys changed since the previous version
-   * @returns {Promise<string|void>} return a custom message that will be displayed
-   */
   async onSettings({ oldSettings, newSettings, changedKeys }) {
-    this.log(`[Device] ${this.getName()}: ${this.getData().id} settings where changed: ${changedKeys}`);
+    this.log(`[Device] ${this.getName()}: ${this.getData().id} settings were changed: ${changedKeys}`);
     this.data.settings = newSettings;
     this._clearIntervals();
     this._checkDeviceInterval({
-      interval: newSettings.polling, 
-      unit: newSettings.polling_unit, 
-      interval_off: newSettings.polling_off, 
-      interval_off_active: newSettings.polling_off_active
+      interval: newSettings.polling,
+      unit: newSettings.polling_unit,
+      interval_off: newSettings.polling_off,
+      interval_off_active: newSettings.polling_off_active,
     });
   }
-  
+
   _generateDeviceObject() {
     return {
       name: this.getName(),
@@ -74,64 +79,61 @@ class SonyBraviaAndroidTvDevice extends Homey.Device {
       settings: this.getSettings(),
       capabilities: this.getCapabilities(),
       device: {
-        speaker:{
+        speaker: {
           maxVolume: 100,
-          minVolume: 0
+          minVolume: 0,
         },
-        headphone:{
+        headphone: {
           maxVolume: 100,
-          minVolume: 0
-        }
-      }
-    }
+          minVolume: 0,
+        },
+      },
+    };
   }
 
   async _setCapabilityListeners() {
-    // Register all capability listener
-    // Handler functions are defined in capabilities.js for every capability.
-    SonyBraviaCapabilities.forEach(capability => {
-      this.registerCapabilityListener(capability.name, async value => {
+    SonyBraviaCapabilities.forEach((capability) => {
+      this.registerCapabilityListener(capability.name, async (value) => {
+        this._commandInFlight += 1;
         try {
           await capability.function(this, value);
         } catch (err) {
-          this.log(`${this.data.name} capability listener ${capability.name} could not be executed: `, err.message);
-          throw new Error("Error message from TV: "+err.message);
+          this.log(`${this.getName()} capability listener ${capability.name} could not be executed: `, err.message);
+          throw new Error(err.message);
+        } finally {
+          this._commandInFlight = Math.max(0, this._commandInFlight - 1);
         }
-        this.homey.setTimeout(() => 
-          this.checkDevice(),  1000 );
+        this.homey.setTimeout(() => this.checkDevice(), 1000);
         return true;
       });
     });
   }
 
-  async _setFlowTrigger(){
+  async _setFlowTrigger() {
     this._flowTriggerInputChanged = this.homey.flow.getDeviceTriggerCard('input_changed');
     this._flowTriggerPlayingContentChanged = this.homey.flow.getDeviceTriggerCard('playing_content_changed');
   }
 
   async _checkDeviceInterval({
-      interval = this.data.settings.polling, 
-      unit = this.data.settings.polling_unit,
-      interval_off = this.data.settings.polling_off,
-      interval_off_active = this.data.settings.polling_off_active,
-      onoff_state = undefined } = {}) {
-
-    if (onoff_state == undefined){
+    interval = this.getSettings().polling,
+    unit = this.getSettings().polling_unit,
+    interval_off = this.getSettings().polling_off,
+    interval_off_active = this.getSettings().polling_off_active,
+    onoff_state = undefined,
+  } = {}) {
+    if (onoff_state === undefined) {
       onoff_state = this.getCapabilityValue('onoff');
-    } 
-    // Interval settings is in minutes, convert to milliseconds.
+    }
     interval = interval * 1000;
-    if (unit == 'min'){
+    if (unit === 'min') {
       interval = interval * 60;
     }
-    // different interval when TV is off and setting is active
-    if (!onoff_state && interval_off_active){
+    if (!onoff_state && interval_off_active) {
       interval = interval_off * 1000 * 60;
     }
     try {
       this.log(`[Device] ${this.getName()}: onPollInterval =>`, interval);
-      this.onPollInterval =  this.homey.setInterval(() => this.checkDevice(), interval);
-      // Update device after command action
+      this.onPollInterval = this.homey.setInterval(() => this.checkDevice(), interval);
       this.checkDevice();
     } catch (error) {
       this.log(error);
@@ -141,140 +143,138 @@ class SonyBraviaAndroidTvDevice extends Homey.Device {
   async _clearIntervals() {
     try {
       this.log(`[Device] ${this.getName()}: clearIntervals`);
-      this.homey.clearInterval(this.onPollInterval);
+      if (this.onPollInterval) {
+        this.homey.clearInterval(this.onPollInterval);
+        this.onPollInterval = null;
+      }
     } catch (error) {
       this.log(error);
     }
   }
 
+  async beginUserCommand() {
+    this._commandInFlight += 1;
+  }
+
+  async endUserCommand() {
+    this._commandInFlight = Math.max(0, this._commandInFlight - 1);
+  }
+
   async checkDevice() {
-    // this.log("Check device state...");
-    if (await this._checkDeviceAvailability()){
-      await this._checkDevicePowerState();
-      await this._checkDeviceVolume();
-      await this._checkPlayingContent();
-      await this._checkSoundSettings();
-      await this._checkPowerSavingMode();
+    if (this._pollInFlight || this._commandInFlight > 0) {
+      return;
     }
-  }
-
-  async _checkDeviceAvailability() {
-    // Don't set device unavailable. Keep it available but off to turn ov with wWoL
+    this._pollInFlight = true;
     try {
-      await SonyBraviaAndroidTvCommunicator.getDevicePowerState(this);
-      // this.log("Check device availability: TRUE");
-      return true;
-      // return this.setAvailable();
+      await this._pollOnce();
     } catch (err) {
-      // this.log("Check device availability: FALSE");
-      // return this.setUnavailable();
-      return false;
+      this.error(`poll error: ${err.message}`);
+    } finally {
+      this._pollInFlight = false;
     }
   }
 
-  async _checkDevicePowerState() {
+  async _pollOnce() {
+    const pollOptions = { retry: false };
+    let powerStatus;
+
     try {
-      let state = await SonyBraviaAndroidTvCommunicator.getDevicePowerState(this);
-      // this.log(`[Device] ${this.getName()}: current power state: `, state);
-      let value = state === 'active' ? true : false;
-      if (value != this.getCapabilityValue('onoff')){
-        // state changed => check polling interval
+      powerStatus = await SonyBraviaAndroidTvCommunicator.getDevicePowerState(this, pollOptions);
+    } catch (err) {
+      this.log(`poll: TV not reachable (${err.status || err.message})`);
+      if (this.getCapabilityValue('onoff') !== false) {
+        await this.setCapabilityValue('onoff', false);
         this._clearIntervals();
-        this._checkDeviceInterval({onoff_state: value});
+        this._checkDeviceInterval({ onoff_state: false });
       }
-      return this.setCapabilityValue('onoff', state === 'active' ? true : false);
-    } 
-    catch (err) {
-      this.setCapabilityValue('onoff', false);
+      return;
+    }
+
+    const isOn = powerStatus === 'active';
+    if (isOn !== this.getCapabilityValue('onoff')) {
+      this._clearIntervals();
+      this._checkDeviceInterval({ onoff_state: isOn });
+    }
+    await this.setCapabilityValue('onoff', isOn);
+
+    if (!isOn) {
+      return;
+    }
+
+    await this._checkDeviceVolume(pollOptions);
+    await this._checkPlayingContent(pollOptions);
+    await this._checkSoundSettings(pollOptions);
+    await this._checkPowerSavingMode(pollOptions);
+  }
+
+  async _checkPowerSavingMode(options = { retry: false }) {
+    try {
+      const state = await SonyBraviaAndroidTvCommunicator.getPowerSavingMode(this, options);
+      if (state && state.mode) {
+        if (state.mode === 'pictureOff') {
+          await this.setCapabilityValue('screen_off', true);
+        } else {
+          await this.setCapabilityValue('screen_off', false);
+          await this.setStoreValue('power_saving_mode', state.mode);
+        }
+      }
+    } catch (_err) {
+      // Keep last known screen_off during poll failures.
     }
   }
 
-  async _checkPowerSavingMode() {
+  async _checkDeviceVolume(options = { retry: false }) {
     try {
-      let state = await SonyBraviaAndroidTvCommunicator.getSgetPowerSavingModeoundSettings(this);
-      // this.log(`[Device] ${this.getName()}: current volume state: `, state);
-      if (state && state.mode){
-        if (state.mode == 'pictureOff'){
-          this.setCapabilityValue('screen_off', true);
-        }
-        else{
-          this.setCapabilityValue('screen_off', false);
-          device.setStoreValue('power_saving_mode', state.mode);   
-        }
-      }
-      else{
-        this.setCapabilityValue('audio_output', null);
-      }
-    }
-    catch (err) {
-      // this.log(`[Device] ${this.getName()}: getVolume error: ${err.message}`);
-    }
-  }
-
-  async _checkDeviceVolume() {
-    try {
-      let state = await SonyBraviaAndroidTvCommunicator.getVolume(this, 'speaker');
-      // this.log(`[Device] ${this.getName()}: current volume state: `, state);
+      const state = await SonyBraviaAndroidTvCommunicator.getVolume(this, 'speaker', options);
       this.data.device.speaker.maxVolume = state.maxVolume;
       this.data.device.speaker.minVolume = state.minVolume;
-      let volume = state.volume / state.maxVolume;
-      this.setCapabilityValue('volume_set', volume);
-      this.setCapabilityValue('volume_mute', state.mute);
-    }
-    catch (err) {
-      // this.log(`[Device] ${this.getName()}: getVolume error: ${err.message}`);
+      const volume = state.volume / state.maxVolume;
+      await this.setCapabilityValue('volume_set', volume);
+      await this.setCapabilityValue('volume_mute', state.mute);
+    } catch (_err) {
+      // Keep last known volume during poll failures.
     }
   }
 
-  async _checkSoundSettings() {
+  async _checkSoundSettings(options = { retry: false }) {
     try {
-      let state = await SonyBraviaAndroidTvCommunicator.getSoundSettings(this);
-      // this.log(`[Device] ${this.getName()}: current volume state: `, state);
-      if (state && state.currentValue){
-        this.setCapabilityValue('audio_output', state.currentValue);
+      const state = await SonyBraviaAndroidTvCommunicator.getSoundSettings(this, options);
+      if (state && state.currentValue) {
+        await this.setCapabilityValue('audio_output', state.currentValue);
+      } else {
+        await this.setCapabilityValue('audio_output', null);
       }
-      else{
-        this.setCapabilityValue('audio_output', null);
-      }
-    }
-    catch (err) {
-      // this.log(`[Device] ${this.getName()}: getVolume error: ${err.message}`);
+    } catch (_err) {
+      // Keep last known audio output during poll failures.
     }
   }
 
-  async _checkPlayingContent() {
-    let input = await this.getPlayingContentInfoInput();
-    if (this.getCapabilityValue("input") != input.input_capability_value){
-      // this.log(`[Device] ${this.getName()}: checkPlayingContent new input: `, input);
-      this.setCapabilityValue('input', input.input_capability_value);
+  async _checkPlayingContent(options = { retry: false }) {
+    let playingContent;
+    try {
+      playingContent = await SonyBraviaAndroidTvCommunicator.getPlayingContentInfo(this, options);
+    } catch (_err) {
+      playingContent = null;
+    }
 
+    const input = this._inputFromPlayingContent(playingContent);
+    if (this.getCapabilityValue('input') !== input.input_capability_value) {
+      await this.setCapabilityValue('input', input.input_capability_value);
       await this._flowTriggerInputChanged.trigger(
         this,
         {
           input: input.input_uri,
-          input_text: input.input_title
+          input_text: input.input_title,
         },
-        { }
+        {}
       );
     }
 
-    let playing_content;
-    let playing_content_string = '';
-    try {
-      playing_content = await SonyBraviaAndroidTvCommunicator.getPlayingContentInfo(this);
-    }
-    catch (err) {
-      // this.log(`[Device] ${this.getName()}: checkPlayingContent error: ${err.message}`);
-      playing_content = '{}';
-    }
+    const playingContentString = JSON.stringify(playingContent || {});
+    if (this.getCapabilityValue('playing_content') !== playingContentString) {
+      await this.setCapabilityValue('playing_content', playingContentString);
 
-    playing_content_string = JSON.stringify(playing_content);
-
-    if (this.getCapabilityValue("playing_content") != playing_content_string){
-      // this.log(`[Device] ${this.getName()}: checkPlayingContent new input: `, input);
-      this.setCapabilityValue('playing_content', playing_content_string);
-
-      let playing_content_tokens = {
+      const playingContentTokens = {
         uri: '',
         source: '',
         title: '',
@@ -282,275 +282,179 @@ class SonyBraviaAndroidTvDevice extends Homey.Device {
         triplet_str: '',
         program_title: '',
         start_date_time: '',
-        duration: 0
+        duration: 0,
+      };
+      if (playingContent && playingContent.uri) {
+        playingContentTokens.uri = playingContent.uri;
       }
-      if (playing_content && playing_content.uri){
-        playing_content_tokens.uri = playing_content.uri;
+      if (playingContent && playingContent.source) {
+        playingContentTokens.source = playingContent.source;
       }
-      if (playing_content && playing_content.source){
-        playing_content_tokens.source = playing_content.source;
+      if (playingContent && playingContent.title) {
+        playingContentTokens.title = playingContent.title;
       }
-      if (playing_content && playing_content.title){
-        playing_content_tokens.title = playing_content.title;
+      if (playingContent && playingContent.disp_num) {
+        playingContentTokens.disp_num = playingContent.disp_num;
       }
-      if (playing_content && playing_content.disp_num){
-        playing_content_tokens.disp_num = playing_content.disp_num;
+      if (playingContent && playingContent.triplet_str) {
+        playingContentTokens.triplet_str = playingContent.triplet_str;
       }
-      if (playing_content && playing_content.triplet_str){
-        playing_content_tokens.triplet_str = playing_content.triplet_str;
+      if (playingContent && playingContent.program_title) {
+        playingContentTokens.program_title = playingContent.program_title;
       }
-      if (playing_content && playing_content.program_title){
-        playing_content_tokens.program_title = playing_content.program_title;
+      if (playingContent && playingContent.start_date_time) {
+        playingContentTokens.start_date_time = playingContent.start_date_time;
       }
-      if (playing_content && playing_content.start_date_time){
-        playing_content_tokens.start_date_time = playing_content.start_date_time;
-      }
-      if (playing_content && playing_content.duration){
-        playing_content_tokens.duration = playing_content.duration;
+      if (playingContent && playingContent.duration) {
+        playingContentTokens.duration = playingContent.duration;
       }
       await this._flowTriggerPlayingContentChanged.trigger(
         this,
-        playing_content_tokens,
-        { }
+        playingContentTokens,
+        {}
       );
     }
-
   }
 
-  async getPlayingContentInfoInput(){
-    let input = {
+  _inputFromPlayingContent(state) {
+    const input = {
       input_uri: '',
       input_title: '',
-      input_capability_value: null
+      input_capability_value: null,
     };
 
-    let state = undefined;
-    try {
-      state = await SonyBraviaAndroidTvCommunicator.getPlayingContentInfo(this);
-    }
-    catch (err) {
-      // this.log(`[Device] ${this.getName()}: checkPlayingContent error: ${err.message}`);
-    }
-
-    if (!state){
+    if (!state) {
       return input;
     }
-    try{
-      if (state.source.startsWith('tv:')){
+
+    try {
+      if (state.source && state.source.startsWith('tv:')) {
         input.input_uri = state.source;
-      }
-      else{
+      } else {
         input.input_uri = state.uri;
       }
 
-      let title = this.homey.app.manifest.capabilities.input.values.filter(e => e.id === input.input_uri)[0].title;
-      // check is title i sfound and input is one of the mode IDs
-      if (title != undefined){
-        input.input_title = title;
-        input.input_capability_value = input.input_uri; 
+      const match = this.homey.app.manifest.capabilities.input.values.filter((entry) => entry.id === input.input_uri)[0];
+      if (match && match.title !== undefined) {
+        input.input_title = match.title;
+        input.input_capability_value = input.input_uri;
       }
-      else{
-        input.input_title = '';
-        input.uri = '';
-        input.input_capability_value = null; 
-      }
-    }
-    catch(err){
-
+    } catch (_err) {
+      // Unknown input stays empty.
     }
     return input;
   }
 
-  // Flow actions ===========================================================================================
-  async getAutocompleteAppList(){
-    let result = [];
-    let apps = await SonyBraviaAndroidTvCommunicator.getApps(this);
-    for (let i=0; i<apps.length; i++){
-      result.push(
-        {
-          name: apps[i].title,
-          uri: apps[i].uri,
-          image: apps[i].icon
-        }
-      );
+  async getPlayingContentInfoInput() {
+    let state;
+    try {
+      state = await SonyBraviaAndroidTvCommunicator.getPlayingContentInfo(this, { retry: false });
+    } catch (_err) {
+      state = undefined;
     }
-    result.sort(function(a, b){
-      if (a.name < b.name){ 
-        return -1
-      }
-      else{
-        return 1;
-      }
-    });
-    return result;
+    return this._inputFromPlayingContent(state);
   }
 
-  async getAutocompleteInputList(){
-    let result = [];
-
-    let sources = await SonyBraviaAndroidTvCommunicator.getSourcess(this, 'tv');
-    for (let i=0; i<sources.length; i++){
-      result.push(
-        {
-          name: sources[i].source.toUpperCase(),
-          uri: sources[i].source
-        }
-      );
+  async getAutocompleteAppList() {
+    const result = [];
+    const apps = await SonyBraviaAndroidTvCommunicator.getApps(this);
+    for (let i = 0; i < apps.length; i++) {
+      result.push({
+        name: apps[i].title,
+        uri: apps[i].uri,
+        image: apps[i].icon,
+      });
     }
-
-    let inputs = await SonyBraviaAndroidTvCommunicator.getCurrentExternalInputs(this);
-    for (let i=0; i<inputs.length; i++){
-      result.push(
-        {
-          name: inputs[i].title,
-          uri: inputs[i].uri
-        }
-      );
-    }
-
-    result.sort(function(a, b){
-      if (a.index < b.index){ 
-        return -1
-      }
-      else{
-        return 1;
-      }
-    });
-    return result;
+    return sortByName(result);
   }
 
-  async getAutocompleteTvSourceList(){
-    let result = [];
-
-    let sources = await SonyBraviaAndroidTvCommunicator.getSourcess(this, 'tv');
-    for (let i=0; i<sources.length; i++){
-      result.push(
-        {
-          name: sources[i].source.toUpperCase(),
-          uri: sources[i].source
-        }
-      );
+  async getAutocompleteInputList() {
+    const result = [];
+    const sources = await SonyBraviaAndroidTvCommunicator.getSourcess(this, 'tv');
+    for (let i = 0; i < sources.length; i++) {
+      result.push({
+        name: sources[i].source.toUpperCase(),
+        uri: sources[i].source,
+      });
     }
 
-    result.sort(function(a, b){
-      if (a.index < b.index){ 
-        return -1
-      }
-      else{
-        return 1;
-      }
-    });
-    return result;
+    const inputs = await SonyBraviaAndroidTvCommunicator.getCurrentExternalInputs(this);
+    for (let i = 0; i < inputs.length; i++) {
+      result.push({
+        name: inputs[i].title,
+        uri: inputs[i].uri,
+      });
+    }
+
+    return sortByName(result);
   }
 
-  async getAutocompleteTvChannelList(source){
-    let result = [];
-
-    // let sources = await SonyBraviaAndroidTvCommunicator.getSourcess(this, 'tv');
-    // for (let i=0; i<sources.length; i++){
-    //   result.push(
-    //     {
-    //       name: sources[i].source.toUpperCase(),
-    //       uri: sources[i].source.toUpperCase()
-    //     }
-    //   );
-    // }
-    let inputs = await SonyBraviaAndroidTvCommunicator.getInputs(this, source);
-    for (let i=0; i<inputs.length; i++){
-      result.push(
-        {
-          name: inputs[i].title,
-          uri: inputs[i].uri
-        }
-      );
+  async getAutocompleteTvSourceList() {
+    const result = [];
+    const sources = await SonyBraviaAndroidTvCommunicator.getSourcess(this, 'tv');
+    for (let i = 0; i < sources.length; i++) {
+      result.push({
+        name: sources[i].source.toUpperCase(),
+        uri: sources[i].source,
+      });
     }
-
-    result.sort(function(a, b){
-      if (a.index < b.index){ 
-        return -1
-      }
-      else{
-        return 1;
-      }
-    });
-    return result;
+    return sortByName(result);
   }
 
-  async getAutocompleteIrccList(){
-    let result = [];
-    let list = await SonyBraviaAndroidTvCommunicator.getIrccCommands(this);
-    for (let i=0; i<list.length; i++){
-      result.push(
-        {
-          name: list[i].name,
-          ircc: list[i].value
-        }
-      );
+  async getAutocompleteTvChannelList(source) {
+    const result = [];
+    const inputs = await SonyBraviaAndroidTvCommunicator.getInputs(this, source);
+    for (let i = 0; i < inputs.length; i++) {
+      result.push({
+        name: inputs[i].title,
+        uri: inputs[i].uri,
+      });
     }
-    result.sort(function(a, b){
-      if (a.name < b.name){ 
-        return -1
-      }
-      else{
-        return 1;
-      }
-    });
-    return result;
+    return sortByName(result);
   }
 
-  async getAutocompleteQualitySettingsList(type){
-    let result = [];
-    let list = await SonyBraviaAndroidTvCommunicator.getPictureQualitySettings(this, type);
-    for (let i=0; i<list.length; i++){
-      if (list[i].target == type){
-        for (let j=0; j<list[i].candidate.length; j++){
-          result.push(
-            {
-              name: list[i].candidate[j].value,
-              id: list[i].candidate[j].value
-            }
-          );
-        }
-      }
+  async getAutocompleteIrccList() {
+    const result = [];
+    const list = await SonyBraviaAndroidTvCommunicator.getIrccCommands(this);
+    for (let i = 0; i < list.length; i++) {
+      result.push({
+        name: list[i].name,
+        ircc: list[i].value,
+      });
     }
-    result.sort(function(a, b){
-      if (a.name < b.name){ 
-        return -1
-      }
-      else{
-        return 1;
-      }
-    });
-    return result;
+    return sortByName(result);
   }
 
-
-  async screenOff(_value){
-    try{
-      this.log(`set screen_off to ${_value}.`);
-      if (_value == true){
-        // true, so screenshould be turned off
-        // store last value to go back when screen_off is set to false
-        let lastMode = await SonyBraviaAndroidTvCommunicator.getPowerSavingMode(this);
-        await this.setStoreValue('power_saving_mode', lastMode.mode);           
-        return SonyBraviaAndroidTvCommunicator.setPowerSavingMode(this, 'pictureOff');
-      }
-      else{
-        // false, go back to last state
-        let lastMode = this.getStoreValue('power_saving_mode');         
-        // if no mode is known, don't change
-        if (lastMode != undefined && lastMode != 'pictureOff'){
-          return SonyBraviaAndroidTvCommunicator.setPowerSavingMode(this, lastMode);
-        }
-        else{
-          return SonyBraviaAndroidTvCommunicator.setPowerSavingMode(this, 'low');
+  async getAutocompleteQualitySettingsList(type) {
+    const result = [];
+    const list = await SonyBraviaAndroidTvCommunicator.getPictureQualitySettings(this, type);
+    for (let i = 0; i < list.length; i++) {
+      if (list[i].target === type) {
+        for (let j = 0; j < list[i].candidate.length; j++) {
+          result.push({
+            name: list[i].candidate[j].value,
+            id: list[i].candidate[j].value,
+          });
         }
       }
     }
-    catch(err){
-      throw err;
-    }
+    return sortByName(result);
   }
+
+  async screenOff(_value) {
+    if (_value === true) {
+      const lastMode = await SonyBraviaAndroidTvCommunicator.getPowerSavingMode(this, { retry: true });
+      await this.setStoreValue('power_saving_mode', lastMode.mode);
+      return SonyBraviaAndroidTvCommunicator.setPowerSavingMode(this, 'pictureOff', { retry: true });
+    }
+
+    const lastMode = this.getStoreValue('power_saving_mode');
+    if (lastMode !== undefined && lastMode !== 'pictureOff') {
+      return SonyBraviaAndroidTvCommunicator.setPowerSavingMode(this, lastMode, { retry: true });
+    }
+    return SonyBraviaAndroidTvCommunicator.setPowerSavingMode(this, 'low', { retry: true });
+  }
+
 }
 
 module.exports = SonyBraviaAndroidTvDevice;
